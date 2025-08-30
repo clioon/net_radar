@@ -7,22 +7,18 @@ clients = arp_scanner(ip_range)
 
 for client in clients:
   #hostname
-  try:
-    hostname = socket.gethostbyaddr(client['IP'])[0]
-  except socket.herror:
-    hostname = None
-  client['Hostname'] = hostname if hostname else 'Unknown'
+  client['Hostname'] = get_hostname(client['IP'])
 
   #mac
-  #vendor = mac_lookup(client['MAC'])
-  vendor = "none"
+  vendor = mac_lookup(client['MAC'])
+  #vendor = "none"
   client['Vendor'] = vendor
 
   #os
   fp = fingerprint_os(client['IP'])
   client['OS'] = simple_guess_os(fp)
 
-print(f"{'IP':<16} {'MAC':<18} {'Hostname':<30} {'Vendor':<20} {'OS'}")
+print(f"{'IP':<16} {'MAC':<18} {'Hostname':<10} {'Vendor':<30} {'OS'}")
 print("-" * 110)
 for client in clients:
-    print(f"{client['IP']:<16} {client['MAC']:<18} {client['Hostname']:<30} {client['Vendor']:<20} {client['OS']}")
+    print(f"{client['IP']:<16} {client['MAC']:<18} {client['Hostname']:<10} {client['Vendor']:<30} {client['OS']}")
