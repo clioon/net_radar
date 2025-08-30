@@ -50,4 +50,4 @@ def simple_guess_os(fingerprint):
       best_score = score
       best_match = os_data["name"]
     
-  return best_match if best_match else "Unknown OS"
+  return best_match if best_match else "Unknown"

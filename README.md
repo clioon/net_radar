@@ -10,6 +10,7 @@ It allows you to:
 ## Features
 
 - ARP Scanner
+- Hostname Resolution
 - MAC Vendor Lookup
   > Uses the [MAC Vendor Lookup API](https://www.macvendorlookup.com/) to identify device manufacturers.
 - OS Fingerprinting
