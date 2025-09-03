@@ -2,10 +2,12 @@ from scanner import *
 import socket
 
 ip_range = "192.168.0.0/24"
+# ip_range = "192.168.0.7"
 
 clients = arp_scanner(ip_range)
 
 for client in clients:
+  print("\n======== Calculating", client, "======== \n")
   #hostname
   client['Hostname'] = get_hostname(client['IP'])
 
@@ -15,8 +17,8 @@ for client in clients:
   client['Vendor'] = vendor
 
   #os
-  fp = fingerprint_os(client['IP'])
-  client['OS'] = simple_guess_os(fp)
+  fp = get_fingerprint_os(client['IP'], None, 2)
+  client['OS'] = os_guess(fp)
 
 print(f"{'IP':<16} {'MAC':<18} {'Hostname':<10} {'Vendor':<30} {'OS'}")
 print("-" * 110)
