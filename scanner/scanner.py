@@ -1,6 +1,8 @@
-from scapy.all import ARP, Ether, srp, DNS, DNSQR, IP, UDP, sr1
+from scapy.all import ARP, Ether, srp, DNS, DNSQR, IP, UDP, sr1, TCP, RandShort
 import requests
 import socket
+
+COMMON_TCP_PORTS = [20, 21, 22, 23, 25, 53, 80, 110, 143, 443, 445, 3389]
 
 def arp_scanner(ip_range, timeout=2):
   """
@@ -34,21 +36,25 @@ def mac_lookup(mac_addr):
     mac_addr (str): The MAC address to query, in any common format (e.g., "00:23:AB:7B:58:99").
   """
 
-  url = f"https://www.macvendorlookup.com/api/v2/{mac_addr}"
-  response = requests.get(url)
+  try:
+    mac_addr = mac_addr.strip().replace("-", ":").upper()
+    url = f"https://www.macvendorlookup.com/api/v2/{mac_addr}"
+    response = requests.get(url)
 
-  if response.status_code == 200:
-    data = response.json()
-    if data:
-      return data[0]['company']
-    else:
-      return "Vendor not found"
+    if response.status_code == 200:
+      data = response.json()
+      if data:
+        return data[0]['company']
+      else:
+        return "Vendor not found"
+      
+    elif response.status_code == 204:
+      return "Unknown"
     
-  elif response.status_code == 204:
-    return "No match found"
-  
-  else:
-    return f"Error: {response.status_code}"
+    else:
+      return f"Error: {response.status_code}"
+  except Exception as e:
+    return e
 
 def get_hostname(ip, timeout=2):
   """
@@ -60,7 +66,8 @@ def get_hostname(ip, timeout=2):
   hostname = None
 
   try:
-    return socket.gethostbyaddr(ip)[0]
+    result = socket.gethostbyaddr(ip)
+    if result and result[0]: return result[0]
   except (socket.herror, socket.gaierror, socket.timeout):
     pass
 
@@ -79,3 +86,24 @@ def get_hostname(ip, timeout=2):
     pass
 
   return "Unknown"
+
+def open_ports_scanner(ip, ports=None, timeout=1):
+  """
+  Simple port scanner with SYN scan
+  """
+
+  if ports is None:
+    ports = COMMON_TCP_PORTS
+
+  source_port = RandShort()
+  open_ports = []
+
+  for port in ports:
+    pkt = sr1(IP(dst=ip)/TCP(sport=source_port, dport=port, flags='S'), timeout=timeout, verbose=0)
+
+    if pkt is not None:
+      if pkt.haslayer(TCP):
+        if pkt[TCP].flags == 18:
+          open_ports.append(port)
+
+  return open_ports

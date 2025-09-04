@@ -1,8 +1,7 @@
 from scapy.all import sr1, IP, ICMP, TCP
+from .scanner import COMMON_TCP_PORTS
 from .osfingerprint_db import OS_FINGERPRINT_DB
 from collections import Counter
-
-DEFAULT_PORTS = [80, 443, 22]
 
 # =============
 #   helpers
@@ -111,7 +110,7 @@ def get_tcp_info(ip, ports, timeout=2):
   return results
 
 # ================
-# os fingerprint 
+#  os fingerprint 
 # ================
 
 def get_fingerprint_os(ip, ports=None, timeout=2):
@@ -125,7 +124,7 @@ def get_fingerprint_os(ip, ports=None, timeout=2):
   """
 
   if ports is None:
-    ports = DEFAULT_PORTS
+    ports = COMMON_TCP_PORTS
 
   data = {
     "icmp_ttl": normalize_ttl(get_icmp_ttl(ip)),
