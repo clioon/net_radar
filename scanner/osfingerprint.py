@@ -2,7 +2,74 @@ from scapy.all import sr1, IP, ICMP, TCP
 from .osfingerprint_db import OS_FINGERPRINT_DB
 from collections import Counter
 
+DEFAULT_PORTS = [80, 443, 22]
+
+# =============
+#   helpers
+# =============
+
+def normalize_ttl(ttl):
+  """
+  Normalize the TTL to 64, 128 or 255.
+  """
+
+  if ttl is None:
+    return None     
+  if ttl <= 64:
+    return 64
+  elif ttl <= 128:
+    return 128
+  else:
+    return 255
+  
+def get_mode(values):
+  """
+  Get first element with the most count (mode).
+  """
+
+  if not values: 
+    return
+  
+  counts = Counter(values)
+  max_count = max(counts.values())
+
+  for v in values:
+    if counts[v] == max_count:
+      return v
+
+def check_options_match(actual_options, expected_options, check_order=True):
+  """
+  Check if the TCP options (actual_options) match with the database ones (expected_options).
+  - if check_order is True, the order must be exactly the same.
+  """
+
+  if expected_options is None:
+    return False
+  
+  if check_order:
+    return actual_options == expected_options
+  else:
+    return set(actual_options) == set(expected_options)
+
+def fuzzy_window_match(actual, expected, tolerance=0.1):
+  """
+  Return True if 'actual' matches any value in 'expected' within the given relative tolerance.
+  """
+
+  if expected is None:
+    return False
+      
+  return any(abs(actual - exp) / exp <= tolerance for exp in expected)
+
+# ===============
+# network probing
+# ===============
+
 def get_icmp_ttl(ip, timeout=2):
+  """
+  Send an ICMP Echo Request to 'ip' and return the reply's ICMP TTL.
+  """
+
   pkt = IP(dst=ip)/ICMP()
   response = sr1(pkt, timeout=timeout, verbose=0)
   if response:
@@ -11,10 +78,14 @@ def get_icmp_ttl(ip, timeout=2):
   print("icmp ttl: {}")
   return None
 
-def get_tcp_info(ip, ports=None, timeout=2):
+def get_tcp_info(ip, ports, timeout=2):
+  """
+  Send a TCP SYN to each port in 'ports' and collect per-port data:
+  ttl, window, options, flags and df_flag (if available).
+  Returns a dict keyed by port with the collected data.
+  """
+
   results = {}
-  if ports is None:
-    ports = [80, 443, 22]
 
   for port in ports:
     try:
@@ -33,34 +104,29 @@ def get_tcp_info(ip, ports=None, timeout=2):
         
         results[port] = tcp_data
 
-    except Exception as e:
+    except Exception:
       continue
   
   print("tcp info: ", results)
   return results
 
-def normalize_ttl(ttl):
-  if ttl is None:
-    return None     
-  if ttl <= 64:
-    return 64
-  elif ttl <= 128:
-    return 128
-  else:
-    return 255
-  
-def get_mode(values):
-  if not values: 
-    return
-  
-  counts = Counter(values)
-  max_count = max(counts.values())
-
-  for v in values:
-    if counts[v] == max_count:
-      return v
+# ================
+# os fingerprint 
+# ================
 
 def get_fingerprint_os(ip, ports=None, timeout=2):
+  """
+  Build a fingerprint for ip (and its ports) containing:
+    - ICMP TTL (normalized)
+    - tcp_data (per-port)
+    - tcp_ttl (mode normalized)
+    - window (mode)
+    - tcp_options (mode)
+  """
+
+  if ports is None:
+    ports = DEFAULT_PORTS
+
   data = {
     "icmp_ttl": normalize_ttl(get_icmp_ttl(ip)),
     "tcp_data": {}
@@ -75,7 +141,7 @@ def get_fingerprint_os(ip, ports=None, timeout=2):
     common_options = []
       
     for port, info in tcp_info.items():
-      common_ttl.append(info["ttl"])
+      common_ttl.append(normalize_ttl(info["ttl"]))
       common_window.append(info["window"])
       common_options.append(tuple(opt[0] for opt in info["options"]))
 
@@ -85,22 +151,11 @@ def get_fingerprint_os(ip, ports=None, timeout=2):
   
   return data
 
-def check_options_match(actual_options, expected_options, check_order=True):
-  if expected_options is None:
-    return False
-  
-  if check_order:
-    return actual_options == expected_options
-  else:
-    return set(actual_options) == set(expected_options)
-
-def fuzzy_window_match(actual, expected, tolerance=0.1):
-  if expected is None:
-    return False
-      
-  return any(abs(actual - exp) / exp <= tolerance for exp in expected)
-
 def os_guess(fingerprint):
+  """
+  Compare the 'fingerprint' against entries in OS_FINGERPRINT_DB and return the best match as a tuple: (name, score).
+  """
+
   best_match = "Unknown"
   best_score = 0
   

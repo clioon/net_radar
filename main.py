@@ -8,6 +8,9 @@ clients = arp_scanner(ip_range)
 
 for client in clients:
   print("\n======== Calculating", client, "======== \n")
+  #open ports
+  open_ports = None
+
   #hostname
   client['Hostname'] = get_hostname(client['IP'])
 
@@ -17,7 +20,7 @@ for client in clients:
   client['Vendor'] = vendor
 
   #os
-  fp = get_fingerprint_os(client['IP'], None, 2)
+  fp = get_fingerprint_os(client['IP'], open_ports, 2)
   client['OS'] = os_guess(fp)
 
 print(f"{'IP':<16} {'MAC':<18} {'Hostname':<10} {'Vendor':<30} {'OS'}")
