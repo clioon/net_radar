@@ -11,6 +11,7 @@ It allows you to:
 
 - ARP Scanner
 - Open Ports Scanner
+- ICMP ping
 - Hostname Resolution
 - MAC Vendor Lookup
   > Uses the [MAC Vendor Lookup API](https://www.macvendorlookup.com/) to identify device manufacturers.
