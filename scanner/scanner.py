@@ -1,18 +1,19 @@
-from scapy.all import ARP, Ether, srp, DNS, DNSQR, IP, UDP, sr1, TCP, RandShort
+from scapy.all import ARP, Ether, srp, DNS, DNSQR, IP, UDP, sr1, TCP, RandShort, ICMP
 import requests
 import socket
+import time
 
 COMMON_TCP_PORTS = [20, 21, 22, 23, 25, 53, 80, 110, 143, 443, 445, 3389]
 
 def arp_scanner(ip_range, timeout=2):
   """
-  Scans the local network for active devices using ARP requests.
+  Scans the local network for active devices using ARP requests and ICMP for ping latency.
 
   Args:
     ip_range (str): The IP range to scan, e.g., "192.168.0.0/24".
 
   Returns:
-    list: A list of dictionaries, each containing 'IP' and 'MAC' of a found device.
+    list: A list of dictionaries, each containing 'IP', 'MAC' and 'Latency' of a found device.
   """
   
   ether = Ether(dst="ff:ff:ff:ff:ff:ff")
@@ -23,8 +24,26 @@ def arp_scanner(ip_range, timeout=2):
   clients = []
 
   for sent, received in result:
-    clients.append({ 'IP': received.psrc, 'MAC': received.hwsrc })
+    ip = received.psrc
+    mac = received.hwsrc
 
+    latency = None
+    try:
+      icmp_pkt = IP(dst=ip)/ICMP()
+      start = time.time()
+      resp = sr1(icmp_pkt, timeout=1, verbose=0)
+      end = time.time()
+      if resp:
+        latency = resp.time - icmp_pkt.sent_time
+        latency = round(latency * 1000, 2)
+    except Exception:
+      pass
+
+    clients.append({ 
+      'Latency': latency,
+      'MAC': mac,
+      'IP': ip
+    })
   return clients
 
 def mac_lookup(mac_addr):

@@ -61,10 +61,18 @@ class ScannerGUI(QMainWindow):
     for row, client in enumerate(clients):
       ip_item = QTableWidgetItem(client["IP"])
       ip_item.setTextAlignment(Qt.AlignCenter)
+
       mac_item = QTableWidgetItem(client["MAC"])
       mac_item.setTextAlignment(Qt.AlignCenter)
+
+      latency = client["Latency"]
+      latency_text = f"{latency}" if latency is not None else "N/A"
+      latency_item = QTableWidgetItem(latency_text)
+      latency_item.setTextAlignment(Qt.AlignCenter)
+      
       self.network_table.setItem(row, 0, ip_item)
       self.network_table.setItem(row, 1, mac_item)
+      self.network_table.setItem(row, 2, latency_item)
 
     QTimer.singleShot(500, lambda: self.scan_led.setStyleSheet(
       "background-color: rgb(222, 221, 218); border-radius: 7px; min-width: 15px; min-height: 15px;"

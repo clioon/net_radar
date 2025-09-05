@@ -140,10 +140,10 @@ min-height: 15px;
        <bool>false</bool>
       </attribute>
       <attribute name="horizontalHeaderMinimumSectionSize">
-       <number>185</number>
+       <number>172</number>
       </attribute>
       <attribute name="horizontalHeaderDefaultSectionSize">
-       <number>185</number>
+       <number>172</number>
       </attribute>
       <attribute name="horizontalHeaderShowSortIndicator" stdset="0">
        <bool>false</bool>
@@ -188,7 +188,7 @@ min-height: 15px;
       </column>
       <column>
        <property name="text">
-        <string>PING</string>
+        <string>Latency (ms)</string>
        </property>
       </column>
      </widget>
