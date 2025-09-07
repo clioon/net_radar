@@ -13,6 +13,8 @@ class ScannerGUI(QMainWindow):
     # threads variables
     self.arp_worker = None
     self.arp_worker_lock = False
+    self.ip_scanner_worker = None
+    self.ip_scanner_worker_lock = False
 
     # scan ip button
     self.scan_button.clicked.connect(self.scan_ip)
@@ -90,17 +92,56 @@ class ScannerGUI(QMainWindow):
     ))
 
   def scan_ip(self):
+    if self.ip_scanner_worker_lock: return
+    self.ip_scanner_worker_lock = True
+    
     ip = self.ip_input.text()
     if not ip:
+      self.ip_scanner_worker_lock = False
       return
     self.result_text.clear()
-    open_ports = open_ports_scanner(ip, timeout=1)
-    hostname = get_hostname(ip)
-    vendor = mac_lookup(ip)
-    self.result_text.append(f"IP: {ip}")
-    self.result_text.append(f"Hostname: {hostname}")
-    self.result_text.append(f"Open ports: {open_ports}")
-    self.result_text.append(f"Vendor: {vendor}")
+    self.result_text.append(f"Scanning IP: {ip}...")
+    
+    self.ip_scanner_worker = IpScannerThread(ip, timeout=1)
+    self.ip_scanner_worker.result_ready.connect(self.update_scanner_result)
+    self.ip_scanner_worker.error.connect(lambda e: print("Scan error:", e))
+    self.ip_scanner_worker.finished.connect(self.ip_scanner_worker.deleteLater)
+    self.ip_scanner_worker.finished.connect(lambda: setattr(self, 'ip_scanner_worker_lock', False))
+    self.ip_scanner_worker.start()
+
+  def update_scanner_result(self, results):
+    self.result_text.clear()
+    self.result_text.append(f"IP: {results['ip']}")
+    self.result_text.append(f"Hostname: {results['hostname']}")
+    self.result_text.append(f"Open ports: {results['open_ports']}")
+    self.result_text.append(f"Vendor: {results['vendor']}")
+    self.result_text.append(f"OS: {results['os'][0]}, probability: {results['os'][1]}/10")
+
+
+class IpScannerThread(QThread):
+  result_ready = pyqtSignal(dict)
+  error = pyqtSignal(str)
+
+  def __init__(self, target_ip, timeout=1):
+    super().__init__()
+    self.target_ip = target_ip
+    self.timeout = timeout
+  
+  def run(self):
+    try:
+      results = {}
+      results["ip"] = self.target_ip
+      results["open_ports"] = open_ports_scanner(self.target_ip, timeout=self.timeout)
+      results["hostname"] = get_hostname(self.target_ip)
+      results["vendor"] = mac_lookup(self.target_ip)
+      results["fp"] = get_fingerprint_os(self.target_ip, timeout=self.timeout)
+      results["os"] = os_guess(results["fp"])
+
+      self.result_ready.emit(results)
+
+    except Exception as e:
+      self.error.emit(str(e))
+  
 
 class ArpScannerThread(QThread):
   result_ready = pyqtSignal(list)
