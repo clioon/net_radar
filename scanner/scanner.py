@@ -2,8 +2,10 @@ from scapy.all import ARP, Ether, srp, DNS, DNSQR, IP, UDP, sr1, TCP, RandShort,
 import requests
 import socket
 import time
+import nmap
+import logging
 
-COMMON_TCP_PORTS = [20, 21, 22, 23, 25, 53, 80, 110, 143, 443, 445, 3389]
+COMMON_TCP_PORTS = [20, 21, 22, 23, 25, 53, 80, 110, 143, 443, 445, 3389, 9009, 135, 139, 389, 636, 3306, 5432, 5900, 8080, 8443, 10000]
 
 def arp_scanner(ip_range, timeout=2):
   """
@@ -15,7 +17,10 @@ def arp_scanner(ip_range, timeout=2):
   Returns:
     list: A list of dictionaries, each containing 'IP', 'MAC' and 'Latency' of a found device.
   """
-  
+
+  # remove warnings
+  logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
+
   ether = Ether(dst="ff:ff:ff:ff:ff:ff")
   arp = ARP(pdst=ip_range)
   packet = ether/arp
@@ -108,14 +113,15 @@ def get_hostname(ip, timeout=2):
 
 def open_ports_scanner(ip, ports=None, timeout=1):
   """
-  Simple port scanner with SYN scan
+  - Simple port scanner with SYN scan
+  - Simple port scanner with socket connect()
   """
 
   if ports is None:
     ports = COMMON_TCP_PORTS
 
   source_port = RandShort()
-  open_ports = []
+  open_ports = set()
 
   for port in ports:
     pkt = sr1(IP(dst=ip)/TCP(sport=source_port, dport=port, flags='S'), timeout=timeout, verbose=0)
@@ -123,6 +129,55 @@ def open_ports_scanner(ip, ports=None, timeout=1):
     if pkt is not None:
       if pkt.haslayer(TCP):
         if pkt[TCP].flags == 18:
-          open_ports.append(port)
+          open_ports.add(port)
+
+  for port in ports:
+    try:
+      sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+      sock.settimeout(timeout)
+      if sock.connect_ex((ip, port)) == 0:
+        open_ports.add(port)
+      sock.close()
+    except:
+      continue
 
   return open_ports
+
+def nmap_scanner(ip_range, ports=None, timeout=10000, full_scan=False):
+  """
+  Scanner using Nmap.
+  """
+
+  nm = nmap.PortScanner()
+
+  if full_scan:
+    ports_str = "-p-"
+  elif ports:
+    ports_str = "-p " + ",".join(map(str, ports))
+  else:
+    ports_str = ""
+
+  nm.scan(
+    hosts=ip_range,
+    arguments=f"-T4 -n -Pn --host-timeout {timeout}ms {ports_str}"
+  )
+
+  results = {}
+  for host in nm.all_hosts():
+    host_info = {
+      "IP": host,
+      "MAC": nm[host]["addresses"].get("mac", "Unknown"),
+      "Vendor": nm[host]["vendor"].get(nm[host]["addresses"].get("mac", ""), "Unknown"),
+      "Hostname": nm[host].hostname() if nm[host].hostname() else "Unknown",
+      "Latency_micros": nm[host].get("times", {}).get("srtt", None),
+      "Open_Ports": []
+    }
+
+    for proto in nm[host].all_protocols():
+      for port, portdata in nm[host][proto].items():
+        if portdata["state"] == "open":
+          host_info["Open_Ports"].append(port)
+
+    results[host] = host_info
+
+  return results

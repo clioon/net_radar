@@ -2,6 +2,7 @@ from scapy.all import sr1, IP, ICMP, TCP
 from .scanner import COMMON_TCP_PORTS
 from .osfingerprint_db import OS_FINGERPRINT_DB
 from collections import Counter
+import nmap
 
 # =============
 #   helpers
@@ -164,26 +165,26 @@ def os_guess(fingerprint):
     icmp_ttl = fingerprint.get("icmp_ttl")
     if icmp_ttl is not None and "icmp_ttl" in os_data:
       if icmp_ttl in os_data["icmp_ttl"]:
-        score += 2 
+        score += 20 
     
     tcp_ttl = fingerprint.get("tcp_ttl")
     if tcp_ttl is not None and "tcp_ttl" in os_data:
       if tcp_ttl in os_data["tcp_ttl"]:
-        score += 2
+        score += 20
     
     window = fingerprint.get("window")
     if window is not None and "window" in os_data:
       if fuzzy_window_match(window, os_data["window"]):
-        score += 1
+        score += 10
     
     options = fingerprint.get("tcp_options")
     if options is not None and "options" in os_data:
       check_order = os_data.get("options_order", False)
       if check_options_match(options, os_data["options"], check_order):
-        score += 3 
+        score += 30
 
         if check_order and [opt[0] for opt in options] == os_data["options"]:
-          score += 1
+          score += 10
     
     df_flag = None
     for port_data in fingerprint.get("tcp_data", {}).values():
@@ -193,10 +194,32 @@ def os_guess(fingerprint):
             
     if df_flag is not None and "df_flag" in os_data:
       if df_flag == os_data["df_flag"]:
-        score += 1
+        score += 10
     
     if score > best_score:
       best_score = score
       best_match = os_data["name"]
 
   return best_match, best_score
+
+def nmap_os_fingerprint(ip):
+  """
+  Run Nmap OS detection (-O) against the target IP.
+  Returns a tuple (os_name, accuracy) or ("Unknown", 0) if not detected.
+  """
+  nm = nmap.PortScanner()
+  try:
+    nm.scan(ip, arguments="-O -Pn") 
+
+    if ip in nm.all_hosts():  
+      if 'osmatch' in nm[ip]:
+        matches = nm[ip]['osmatch']
+        if matches:
+          best = matches[0]
+          return best['name'], best['accuracy']
+
+    return "Unknown", 0
+
+  except Exception as e:
+    print(f"Nmap error: {e}")
+    return "Unknown", 0
